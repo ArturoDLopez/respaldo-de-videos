@@ -16,3 +16,9 @@ npm run tauri dev
 ```
 npm run tauri build
 ```
+
+## Licencia
+
+MIT. Consulta el archivo [LICENSE](LICENSE).
+
+yt-dlp y FFmpeg no se incluyen: la app los descarga de sus sitios oficiales y tienen sus propias licencias.
