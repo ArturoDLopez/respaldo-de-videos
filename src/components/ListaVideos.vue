@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { formatoDuracion, sePuedeDescargar, type Elemento } from "../analisis";
+import { formatoDuracion, formatoVistas, sePuedeDescargar, type Elemento } from "../analisis";
 
-const props = defineProps<{ elementos: Elemento[] }>();
+const props = defineProps<{ elementos: Elemento[]; mostrarCanal?: boolean }>();
 /** IDs seleccionados. */
 const seleccion = defineModel<Set<string>>({ required: true });
 
@@ -83,6 +83,8 @@ function seleccionarVisibles(filtro: (e: Elemento) => boolean) {
             <span class="titulo">{{ e.titulo }}</span>
             <span class="detalle">
               <span v-if="e.seccion && seccion === null">{{ e.seccion }}</span>
+              <span v-if="mostrarCanal && e.canal">{{ e.canal }}</span>
+              <span v-if="e.vistas !== null">{{ formatoVistas(e.vistas) }}</span>
               <span v-if="ETIQUETAS[e.estado]" class="etiqueta" :class="e.estado">
                 {{ ETIQUETAS[e.estado] }}
               </span>

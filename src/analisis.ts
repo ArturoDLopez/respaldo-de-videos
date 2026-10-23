@@ -8,6 +8,8 @@ export interface Elemento {
   url: string;
   /** Pestaña del canal de donde viene ("Videos", "Shorts", "Live"…). */
   seccion: string | null;
+  canal: string | null;
+  vistas: number | null;
   duracion: number | null;
   miniatura: string | null;
   estado: EstadoElemento;
@@ -29,8 +31,18 @@ export function analizarEnlace(enlace: string, carpeta: string) {
   return invoke<Analisis>("analizar_enlace", { enlace, carpeta });
 }
 
-export function cancelarAnalisis() {
-  return invoke<void>("cancelar_analisis");
+export function buscarVideos(texto: string, cantidad: number, carpeta: string) {
+  return invoke<Elemento[]>("buscar_videos", { texto, cantidad, carpeta });
+}
+
+export function cancelarConsulta(clave: "analisis" | "busqueda") {
+  return invoke<void>("cancelar_consulta", { clave });
+}
+
+export function formatoVistas(vistas: number | null): string {
+  if (vistas === null) return "";
+  const texto = new Intl.NumberFormat("es", { notation: "compact" }).format(vistas);
+  return vistas === 1 ? "1 vista" : `${texto} vistas`;
 }
 
 /** Solo se pueden descargar los que no están en vivo ni programados. */

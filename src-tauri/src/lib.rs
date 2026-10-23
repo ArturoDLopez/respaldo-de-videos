@@ -20,12 +20,13 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(herramientas::CandadoHerramientas::default())
-        .manage(analisis::AnalisisEnCurso::default())
+        .manage(analisis::ConsultasEnCurso::default())
         .manage(descargas::Cola::default())
         .invoke_handler(tauri::generate_handler![
             abrir_carpeta,
             analisis::analizar_enlace,
-            analisis::cancelar_analisis,
+            analisis::buscar_videos,
+            analisis::cancelar_consulta,
             descargas::obtener_cola,
             descargas::agregar_a_cola,
             descargas::cancelar_descarga,

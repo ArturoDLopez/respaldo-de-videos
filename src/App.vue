@@ -5,6 +5,7 @@ import PantallaPreparacion from "./components/PantallaPreparacion.vue";
 import PantallaAjustes from "./components/PantallaAjustes.vue";
 import PantallaDescargar from "./components/PantallaDescargar.vue";
 import PantallaCola from "./components/PantallaCola.vue";
+import PantallaBuscar from "./components/PantallaBuscar.vue";
 import { ajustes, cargarAjustes } from "./ajustes";
 import { fijarSimultaneas, iniciarCola, pendientes } from "./descargas";
 import {
@@ -15,10 +16,11 @@ import {
   type Progreso,
 } from "./herramientas";
 
-type Pestana = "descargar" | "cola" | "ajustes";
+type Pestana = "descargar" | "buscar" | "cola" | "ajustes";
 
 const PESTANAS: { valor: Pestana; texto: string }[] = [
   { valor: "descargar", texto: "Descargar" },
+  { valor: "buscar", texto: "Buscar" },
   { valor: "cola", texto: "Cola" },
   { valor: "ajustes", texto: "Ajustes" },
 ];
@@ -97,12 +99,14 @@ onUnmounted(() => dejarDeEscuchar?.());
     </div>
 
     <main class="contenedor">
-      <!-- v-show conserva el análisis al cambiar de pestaña. -->
+      <!-- v-show conserva el análisis y la búsqueda al cambiar de pestaña. -->
       <PantallaDescargar
         v-show="pestana === 'descargar'"
         @ir-ajustes="pestana = 'ajustes'"
         @agregados="alAgregar"
       />
+
+      <PantallaBuscar v-show="pestana === 'buscar'" @agregados="alAgregar" />
 
       <PantallaCola v-if="pestana === 'cola'" />
 
@@ -256,6 +260,49 @@ code {
 .pestana.activa {
   color: var(--acento);
   border-bottom-color: var(--acento);
+}
+
+/* Campo con botón, mensaje de error y pie fijo de las pantallas Descargar y Buscar. */
+.buscador {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.buscador input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  background: var(--fondo);
+  color: var(--texto);
+}
+
+.buscador input:focus {
+  outline: 2px solid var(--acento);
+  outline-offset: -1px;
+}
+
+.error {
+  margin: 1rem 0 0;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: var(--error-fondo);
+  color: var(--error-texto);
+}
+
+.pie {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 -1.5rem -1.25rem;
+  padding: 0.75rem 1.5rem;
+  border-top: 1px solid var(--borde);
+  border-radius: 0 0 10px 10px;
+  background: var(--superficie);
 }
 
 .insignia {

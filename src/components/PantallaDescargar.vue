@@ -4,7 +4,7 @@ import ListaVideos from "./ListaVideos.vue";
 import { ajustes } from "../ajustes";
 import {
   analizarEnlace,
-  cancelarAnalisis,
+  cancelarConsulta,
   TIPOS,
   type Analisis,
 } from "../analisis";
@@ -81,7 +81,7 @@ async function agregar() {
           autofocus
         />
         <button v-if="!analizando" type="submit" :disabled="!enlace.trim()">Analizar</button>
-        <button v-else type="button" class="secundario" @click="cancelarAnalisis">Cancelar</button>
+        <button v-else type="button" class="secundario" @click="cancelarConsulta('analisis')">Cancelar</button>
       </form>
       <p class="destino">
         Se guardará en <code>{{ ajustes.carpetaDestino }}</code>
@@ -116,39 +116,10 @@ async function agregar() {
 </template>
 
 <style scoped>
-.buscador {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.buscador input {
-  flex: 1;
-  min-width: 0;
-  font: inherit;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--borde);
-  border-radius: 6px;
-  background: var(--fondo);
-  color: var(--texto);
-}
-
-.buscador input:focus {
-  outline: 2px solid var(--acento);
-  outline-offset: -1px;
-}
-
 .destino {
   margin: 0.75rem 0 0;
   font-size: 0.9rem;
   color: var(--texto-suave);
-}
-
-.error {
-  margin: 1rem 0 0;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  background: var(--error-fondo);
-  color: var(--error-texto);
 }
 
 .suave {
@@ -171,16 +142,4 @@ async function agregar() {
   color: var(--acento);
 }
 
-.pie {
-  position: sticky;
-  bottom: 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 0 -1.5rem -1.25rem;
-  padding: 0.75rem 1.5rem;
-  border-top: 1px solid var(--borde);
-  border-radius: 0 0 10px 10px;
-  background: var(--superficie);
-}
 </style>

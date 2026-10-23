@@ -1,7 +1,8 @@
-//! Análisis de enlaces: averigua si un enlace es un video, una playlist o un
-//! canal y lista sus videos, marcando los que ya están respaldados.
+//! Análisis de enlaces y búsqueda: averigua si un enlace es un video, una
+//! playlist o un canal (o busca en YouTube) y lista sus videos, marcando los
+//! que ya están respaldados.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -16,9 +17,10 @@ use crate::herramientas::{comando_ytdlp, traducir_error_ytdlp};
 /// en la carpeta de destino, así cada carpeta sabe qué tiene respaldado.
 pub const ARCHIVO_DESCARGADOS: &str = ".respaldo-de-videos.txt";
 
-/// Permite cancelar el análisis en curso.
+/// Permite cancelar el análisis o la búsqueda en curso. La clave es
+/// "analisis" o "busqueda", así una no cancela la otra.
 #[derive(Default)]
-pub struct AnalisisEnCurso(Mutex<Option<Arc<Notify>>>);
+pub struct ConsultasEnCurso(Mutex<HashMap<String, Arc<Notify>>>);
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,6 +39,8 @@ pub struct Elemento {
     url: String,
     /// Pestaña del canal de donde viene ("Videos", "Shorts", "Live"…).
     seccion: Option<String>,
+    canal: Option<String>,
+    vistas: Option<u64>,
     duracion: Option<f64>,
     miniatura: Option<String>,
     /// "disponible", "respaldado", "en_vivo" o "programado".
@@ -122,6 +126,8 @@ fn aplanar(
                 .or_else(|| texto(entrada, "url"))
                 .unwrap_or_default(),
             seccion: seccion.map(str::to_string),
+            canal: texto(entrada, "channel").or_else(|| texto(entrada, "uploader")),
+            vistas: entrada.get("view_count").and_then(Value::as_u64),
             duracion: entrada.get("duration").and_then(Value::as_f64),
             miniatura: miniatura(entrada, &extractor, &id),
             estado,
@@ -151,20 +157,20 @@ fn interpretar(info: &Value, descargados: &HashSet<String>) -> Analisis {
     }
 }
 
-#[tauri::command]
-pub async fn analizar_enlace(
-    app: AppHandle,
-    en_curso: State<'_, AnalisisEnCurso>,
-    enlace: String,
-    carpeta: String,
-) -> Result<Analisis, String> {
-    let enlace = normalizar_enlace(&enlace)?;
+/// Corre `yt-dlp --flat-playlist -J` sobre `objetivo` (un enlace o una
+/// búsqueda "ytsearchN:…") y devuelve el JSON. Se puede cancelar con `clave`.
+async fn consultar(
+    app: &AppHandle,
+    en_curso: &ConsultasEnCurso,
+    clave: &str,
+    objetivo: &str,
+) -> Result<Value, String> {
     let cancelar = Arc::new(Notify::new());
-    *en_curso.0.lock().unwrap() = Some(cancelar.clone());
+    en_curso.0.lock().unwrap().insert(clave.to_string(), cancelar.clone());
 
-    let hijo = comando_ytdlp(&app)?
+    let hijo = comando_ytdlp(app)?
         .args(["--flat-playlist", "-J", "--"])
-        .arg(&enlace)
+        .arg(objetivo)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true)
@@ -174,23 +180,50 @@ pub async fn analizar_enlace(
     // Si se cancela, se suelta el proceso y kill_on_drop lo termina.
     let salida = tokio::select! {
         salida = hijo.wait_with_output() => salida.map_err(|e| format!("yt-dlp falló: {e}"))?,
-        _ = cancelar.notified() => return Err("Análisis cancelado.".to_string()),
+        _ = cancelar.notified() => return Err("Cancelado.".to_string()),
     };
-    *en_curso.0.lock().unwrap() = None;
+    en_curso.0.lock().unwrap().remove(clave);
 
     if !salida.status.success() {
         return Err(traducir_error_ytdlp(&String::from_utf8_lossy(&salida.stderr)));
     }
-    let info: Value = serde_json::from_slice(&salida.stdout)
-        .map_err(|e| format!("No se entendió la respuesta de yt-dlp: {e}"))?;
-
-    let descargados = leer_descargados(Path::new(&carpeta));
-    Ok(interpretar(&info, &descargados))
+    serde_json::from_slice(&salida.stdout)
+        .map_err(|e| format!("No se entendió la respuesta de yt-dlp: {e}"))
 }
 
 #[tauri::command]
-pub fn cancelar_analisis(en_curso: State<'_, AnalisisEnCurso>) {
-    if let Some(cancelar) = en_curso.0.lock().unwrap().take() {
+pub async fn analizar_enlace(
+    app: AppHandle,
+    en_curso: State<'_, ConsultasEnCurso>,
+    enlace: String,
+    carpeta: String,
+) -> Result<Analisis, String> {
+    let enlace = normalizar_enlace(&enlace)?;
+    let info = consultar(&app, &en_curso, "analisis", &enlace).await?;
+    Ok(interpretar(&info, &leer_descargados(Path::new(&carpeta))))
+}
+
+/// Busca en YouTube sin API key, con la búsqueda integrada de yt-dlp.
+#[tauri::command]
+pub async fn buscar_videos(
+    app: AppHandle,
+    en_curso: State<'_, ConsultasEnCurso>,
+    texto: String,
+    cantidad: u32,
+    carpeta: String,
+) -> Result<Vec<Elemento>, String> {
+    let texto = texto.trim();
+    if texto.is_empty() {
+        return Err("Escribe qué quieres buscar.".to_string());
+    }
+    let objetivo = format!("ytsearch{}:{texto}", cantidad.clamp(1, 100));
+    let info = consultar(&app, &en_curso, "busqueda", &objetivo).await?;
+    Ok(interpretar(&info, &leer_descargados(Path::new(&carpeta))).elementos)
+}
+
+#[tauri::command]
+pub fn cancelar_consulta(en_curso: State<'_, ConsultasEnCurso>, clave: String) {
+    if let Some(cancelar) = en_curso.0.lock().unwrap().remove(&clave) {
         cancelar.notify_one();
     }
 }

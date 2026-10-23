@@ -79,6 +79,9 @@ pub fn comando_ytdlp(app: &AppHandle) -> Result<tokio::process::Command, String>
         .env("PYTHONUTF8", "1")
         .arg("--ignore-config")
         .arg("--no-warnings")
+        // Usa los certificados de Windows en vez de los propios de yt-dlp: así
+        // funciona con antivirus o proxies que revisan HTTPS (p. ej. Avast).
+        .args(["--compat-options", "no-certifi"])
         .arg("--ffmpeg-location")
         .arg(carpeta_bin(app)?);
     Ok(comando)
