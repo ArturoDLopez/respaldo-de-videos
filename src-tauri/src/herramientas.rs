@@ -71,16 +71,33 @@ pub fn comando_oculto(programa: &Path) -> tokio::process::Command {
     comando
 }
 
+/// Certificados raíz de Mozilla, de https://curl.se/ca/cacert.pem. Para
+/// actualizarlos basta con reemplazar el archivo y recompilar.
+const CERTIFICADOS: &[u8] = include_bytes!("../recursos/cacert.pem");
+
+/// Copia los certificados junto a las herramientas si faltan o cambiaron.
+fn ruta_certificados(app: &AppHandle) -> Result<PathBuf, String> {
+    let ruta = carpeta_bin(app)?.join("cacert.pem");
+    if std::fs::read(&ruta).ok().as_deref() != Some(CERTIFICADOS) {
+        std::fs::write(&ruta, CERTIFICADOS)
+            .map_err(|e| format!("No se pudieron guardar los certificados: {e}"))?;
+    }
+    Ok(ruta)
+}
+
 /// Prepara yt-dlp con las opciones comunes: sin consola, en UTF-8, sin leer
 /// configuraciones globales del usuario y usando nuestro ffmpeg.
 pub fn comando_ytdlp(app: &AppHandle) -> Result<tokio::process::Command, String> {
     let mut comando = comando_oculto(&ruta_ytdlp(app)?);
     comando
         .env("PYTHONUTF8", "1")
+        // Con no-certifi yt-dlp confía en los certificados de Windows (necesario
+        // con antivirus que revisan HTTPS, como Avast) y SSL_CERT_FILE le suma
+        // los de Mozilla (Windows a veces aún no tiene cargadas las raíces de
+        // Google, porque las descarga solo cuando las pide un programa suyo).
+        .env("SSL_CERT_FILE", ruta_certificados(app)?)
         .arg("--ignore-config")
         .arg("--no-warnings")
-        // Usa los certificados de Windows en vez de los propios de yt-dlp: así
-        // funciona con antivirus o proxies que revisan HTTPS (p. ej. Avast).
         .args(["--compat-options", "no-certifi"])
         .arg("--ffmpeg-location")
         .arg(carpeta_bin(app)?);
