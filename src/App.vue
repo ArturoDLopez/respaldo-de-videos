@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
+import { onMounted, onUnmounted, ref, watch } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import PantallaPreparacion from "./components/PantallaPreparacion.vue";
 import PantallaAjustes from "./components/PantallaAjustes.vue";
 import PantallaDescargar from "./components/PantallaDescargar.vue";
-import { cargarAjustes } from "./ajustes";
+import PantallaCola from "./components/PantallaCola.vue";
+import { ajustes, cargarAjustes } from "./ajustes";
+import { fijarSimultaneas, iniciarCola, pendientes } from "./descargas";
 import {
   actualizarYtdlp,
   escucharProgreso,
@@ -13,10 +15,11 @@ import {
   type Progreso,
 } from "./herramientas";
 
-type Pestana = "descargar" | "ajustes";
+type Pestana = "descargar" | "cola" | "ajustes";
 
 const PESTANAS: { valor: Pestana; texto: string }[] = [
   { valor: "descargar", texto: "Descargar" },
+  { valor: "cola", texto: "Cola" },
   { valor: "ajustes", texto: "Ajustes" },
 ];
 
@@ -40,6 +43,16 @@ async function actualizarYtdlpEnSilencio() {
   }
 }
 
+function alAgregar(cantidad: number) {
+  aviso.value =
+    cantidad === 0
+      ? "Esos videos ya estaban en la cola."
+      : cantidad === 1
+        ? "Se agregó 1 video a la cola."
+        : `Se agregaron ${cantidad} videos a la cola.`;
+  pestana.value = "cola";
+}
+
 function alTerminarPreparacion(nuevo: EstadoHerramientas) {
   estado.value = nuevo;
   listo.value = true;
@@ -48,6 +61,8 @@ function alTerminarPreparacion(nuevo: EstadoHerramientas) {
 onMounted(async () => {
   dejarDeEscuchar = await escucharProgreso((p) => (progreso.value = p));
   await cargarAjustes();
+  await iniciarCola();
+  watch(() => ajustes.descargasSimultaneas, fijarSimultaneas, { immediate: true });
   estado.value = await estadoHerramientas();
   if (estado.value.ytdlp && estado.value.ffmpeg) {
     listo.value = true;
@@ -72,6 +87,7 @@ onUnmounted(() => dejarDeEscuchar?.());
         @click="pestana = p.valor"
       >
         {{ p.texto }}
+        <span v-if="p.valor === 'cola' && pendientes" class="insignia">{{ pendientes }}</span>
       </button>
     </nav>
 
@@ -82,7 +98,13 @@ onUnmounted(() => dejarDeEscuchar?.());
 
     <main class="contenedor">
       <!-- v-show conserva el análisis al cambiar de pestaña. -->
-      <PantallaDescargar v-show="pestana === 'descargar'" @ir-ajustes="pestana = 'ajustes'" />
+      <PantallaDescargar
+        v-show="pestana === 'descargar'"
+        @ir-ajustes="pestana = 'ajustes'"
+        @agregados="alAgregar"
+      />
+
+      <PantallaCola v-if="pestana === 'cola'" />
 
       <PantallaAjustes
         v-if="pestana === 'ajustes'"
@@ -234,6 +256,15 @@ code {
 .pestana.activa {
   color: var(--acento);
   border-bottom-color: var(--acento);
+}
+
+.insignia {
+  margin-left: 0.35rem;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: var(--acento);
+  color: #fff;
+  font-size: 0.75rem;
 }
 
 .aviso {

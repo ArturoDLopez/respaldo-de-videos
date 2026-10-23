@@ -8,11 +8,13 @@ import {
   TIPOS,
   type Analisis,
 } from "../analisis";
+import { agregarACola } from "../descargas";
 
-const emit = defineEmits<{ irAjustes: [] }>();
+const emit = defineEmits<{ irAjustes: []; agregados: [cantidad: number] }>();
 
 const enlace = ref("");
 const analizando = ref(false);
+const agregando = ref(false);
 const error = ref<string | null>(null);
 const resultado = ref<Analisis | null>(null);
 const seleccion = ref(new Set<string>());
@@ -47,51 +49,70 @@ async function analizar() {
     analizando.value = false;
   }
 }
+
+async function agregar() {
+  if (!resultado.value) return;
+  agregando.value = true;
+  error.value = null;
+  try {
+    const elegidos = resultado.value.elementos.filter((e) => seleccion.value.has(e.id));
+    const cantidad = await agregarACola(elegidos, ajustes);
+    seleccion.value = new Set();
+    emit("agregados", cantidad);
+  } catch (e) {
+    error.value = String(e);
+  } finally {
+    agregando.value = false;
+  }
+}
 </script>
 
 <template>
-  <section class="tarjeta">
-    <form class="buscador" @submit.prevent="analizar">
-      <input
-        v-model="enlace"
-        type="text"
-        placeholder="Pega el enlace de un video, una playlist o un canal"
-        :disabled="analizando"
-        spellcheck="false"
-        autofocus
-      />
-      <button v-if="!analizando" type="submit" :disabled="!enlace.trim()">Analizar</button>
-      <button v-else type="button" class="secundario" @click="cancelarAnalisis">Cancelar</button>
-    </form>
-    <p class="destino">
-      Se guardará en <code>{{ ajustes.carpetaDestino }}</code>
-      <button class="enlace" @click="emit('irAjustes')">Cambiar</button>
-    </p>
+  <!-- Una sola raíz: así v-show puede ocultar la pantalla. -->
+  <div>
+    <section class="tarjeta">
+      <form class="buscador" @submit.prevent="analizar">
+        <input
+          v-model="enlace"
+          type="text"
+          placeholder="Pega el enlace de un video, una playlist o un canal"
+          :disabled="analizando"
+          spellcheck="false"
+          autofocus
+        />
+        <button v-if="!analizando" type="submit" :disabled="!enlace.trim()">Analizar</button>
+        <button v-else type="button" class="secundario" @click="cancelarAnalisis">Cancelar</button>
+      </form>
+      <p class="destino">
+        Se guardará en <code>{{ ajustes.carpetaDestino }}</code>
+        <button class="enlace" @click="emit('irAjustes')">Cambiar</button>
+      </p>
 
-    <p v-if="analizando" class="suave">
-      Analizando… En canales con muchos videos esto puede tardar un par de minutos.
-    </p>
-    <p v-if="error" class="error">{{ error }}</p>
-  </section>
+      <p v-if="analizando" class="suave">
+        Analizando… En canales con muchos videos esto puede tardar un par de minutos.
+      </p>
+      <p v-if="error" class="error">{{ error }}</p>
+    </section>
 
-  <section v-if="resultado && resultado.elementos.length" class="tarjeta">
-    <header class="encabezado">
-      <div>
-        <span class="tipo">{{ TIPOS[resultado.tipo] }}</span>
-        <h2>{{ resultado.titulo }}</h2>
-        <p class="suave">{{ resumen }}</p>
-      </div>
-    </header>
+    <section v-if="resultado && resultado.elementos.length" class="tarjeta">
+      <header class="encabezado">
+        <div>
+          <span class="tipo">{{ TIPOS[resultado.tipo] }}</span>
+          <h2>{{ resultado.titulo }}</h2>
+          <p class="suave">{{ resumen }}</p>
+        </div>
+      </header>
 
-    <ListaVideos v-model="seleccion" :elementos="resultado.elementos" />
+      <ListaVideos v-model="seleccion" :elementos="resultado.elementos" />
 
-    <footer class="pie">
-      <span>{{ seleccion.size }} seleccionados</span>
-      <button :disabled="true" title="La cola de descargas llega en la Fase 4">
-        Agregar a la cola
-      </button>
-    </footer>
-  </section>
+      <footer class="pie">
+        <span>{{ seleccion.size }} seleccionados</span>
+        <button :disabled="seleccion.size === 0 || agregando" @click="agregar">
+          Agregar a la cola
+        </button>
+      </footer>
+    </section>
+  </div>
 </template>
 
 <style scoped>

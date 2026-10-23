@@ -1,4 +1,5 @@
 mod analisis;
+mod descargas;
 mod herramientas;
 
 use tauri_plugin_opener::OpenerExt;
@@ -20,15 +21,28 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(herramientas::CandadoHerramientas::default())
         .manage(analisis::AnalisisEnCurso::default())
+        .manage(descargas::Cola::default())
         .invoke_handler(tauri::generate_handler![
             abrir_carpeta,
             analisis::analizar_enlace,
             analisis::cancelar_analisis,
+            descargas::obtener_cola,
+            descargas::agregar_a_cola,
+            descargas::cancelar_descarga,
+            descargas::reintentar_descarga,
+            descargas::quitar_de_cola,
+            descargas::limpiar_terminados,
+            descargas::fijar_simultaneas,
             herramientas::estado_herramientas,
             herramientas::instalar_herramientas,
             herramientas::actualizar_ytdlp,
             herramientas::actualizar_ffmpeg,
         ])
-        .run(tauri::generate_context!())
-        .expect("error al iniciar la aplicación");
+        .build(tauri::generate_context!())
+        .expect("error al iniciar la aplicación")
+        .run(|app, evento| {
+            if let tauri::RunEvent::Exit = evento {
+                descargas::detener_todo(app);
+            }
+        });
 }
