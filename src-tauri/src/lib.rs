@@ -1,3 +1,4 @@
+mod analisis;
 mod herramientas;
 
 use tauri_plugin_opener::OpenerExt;
@@ -18,8 +19,11 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(herramientas::CandadoHerramientas::default())
+        .manage(analisis::AnalisisEnCurso::default())
         .invoke_handler(tauri::generate_handler![
             abrir_carpeta,
+            analisis::analizar_enlace,
+            analisis::cancelar_analisis,
             herramientas::estado_herramientas,
             herramientas::instalar_herramientas,
             herramientas::actualizar_ytdlp,

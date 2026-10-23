@@ -71,6 +71,54 @@ pub fn comando_oculto(programa: &Path) -> tokio::process::Command {
     comando
 }
 
+/// Prepara yt-dlp con las opciones comunes: sin consola, en UTF-8, sin leer
+/// configuraciones globales del usuario y usando nuestro ffmpeg.
+pub fn comando_ytdlp(app: &AppHandle) -> Result<tokio::process::Command, String> {
+    let mut comando = comando_oculto(&ruta_ytdlp(app)?);
+    comando
+        .env("PYTHONUTF8", "1")
+        .arg("--ignore-config")
+        .arg("--no-warnings")
+        .arg("--ffmpeg-location")
+        .arg(carpeta_bin(app)?);
+    Ok(comando)
+}
+
+/// Convierte el último "ERROR:" de yt-dlp en un mensaje en español.
+pub fn traducir_error_ytdlp(stderr: &str) -> String {
+    let original = stderr
+        .lines()
+        .rev()
+        .find_map(|l| l.trim().strip_prefix("ERROR:"))
+        .map(str::trim)
+        .unwrap_or_else(|| stderr.trim());
+    let minusculas = original.to_lowercase();
+
+    let traduccion = [
+        ("is not a valid url", "Eso no parece un enlace válido."),
+        ("unsupported url", "Ese enlace no es compatible. Pega el enlace de un video, una playlist o un canal."),
+        ("private video", "El video es privado."),
+        ("members-only", "El video es solo para miembros del canal."),
+        ("sign in to confirm your age", "El video tiene restricción de edad."),
+        ("video unavailable", "El video no está disponible."),
+        ("this channel does not exist", "El canal no existe."),
+        ("does not have a", "El canal no tiene esa sección."),
+        ("http error 404", "No se encontró la página (error 404)."),
+        ("http error 429", "YouTube está limitando las peticiones. Espera unos minutos e intenta de nuevo."),
+        ("getaddrinfo failed", "No hay conexión a internet."),
+        ("timed out", "La conexión tardó demasiado. Revisa tu internet e intenta de nuevo."),
+    ]
+    .iter()
+    .find(|(clave, _)| minusculas.contains(clave))
+    .map(|(_, texto)| *texto);
+
+    match traduccion {
+        Some(texto) => texto.to_string(),
+        None if original.is_empty() => "yt-dlp falló sin dar detalles.".to_string(),
+        None => format!("yt-dlp no pudo completar la operación: {original}"),
+    }
+}
+
 /// Ejecuta el programa y devuelve la primera línea de su salida, o `None` si
 /// no existe o falla.
 async fn primera_linea(programa: &Path, argumento: &str) -> Option<String> {

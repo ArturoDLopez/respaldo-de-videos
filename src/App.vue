@@ -3,7 +3,8 @@ import { onMounted, onUnmounted, ref } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import PantallaPreparacion from "./components/PantallaPreparacion.vue";
 import PantallaAjustes from "./components/PantallaAjustes.vue";
-import { ajustes, cargarAjustes } from "./ajustes";
+import PantallaDescargar from "./components/PantallaDescargar.vue";
+import { cargarAjustes } from "./ajustes";
 import {
   actualizarYtdlp,
   escucharProgreso,
@@ -80,19 +81,11 @@ onUnmounted(() => dejarDeEscuchar?.());
     </div>
 
     <main class="contenedor">
-      <template v-if="pestana === 'descargar'">
-        <section class="tarjeta">
-          <h2>Descargar</h2>
-          <p>
-            Se guardará en <code>{{ ajustes.carpetaDestino }}</code>
-            <button class="enlace" @click="pestana = 'ajustes'">Cambiar</button>
-          </p>
-          <p class="suave">Aquí podrás pegar el enlace de un video, una playlist o un canal.</p>
-        </section>
-      </template>
+      <!-- v-show conserva el análisis al cambiar de pestaña. -->
+      <PantallaDescargar v-show="pestana === 'descargar'" @ir-ajustes="pestana = 'ajustes'" />
 
       <PantallaAjustes
-        v-else
+        v-if="pestana === 'ajustes'"
         :estado="estado"
         :progreso="progreso"
         @estado="(nuevo) => (estado = nuevo)"
@@ -113,6 +106,7 @@ onUnmounted(() => dejarDeEscuchar?.());
   --error-fondo: #fde8e8;
   --error-texto: #9b1c1c;
   --aviso-fondo: #e6f0ff;
+  --exito: #1e7a3c;
 
   font-family: "Segoe UI", system-ui, sans-serif;
   font-size: 16px;
@@ -133,6 +127,7 @@ onUnmounted(() => dejarDeEscuchar?.());
     --error-fondo: #3b1d1d;
     --error-texto: #f5b4b4;
     --aviso-fondo: #1f2d44;
+    --exito: #6fd08f;
   }
 }
 
