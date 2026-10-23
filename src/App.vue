@@ -6,8 +6,10 @@ import PantallaAjustes from "./components/PantallaAjustes.vue";
 import PantallaDescargar from "./components/PantallaDescargar.vue";
 import PantallaCola from "./components/PantallaCola.vue";
 import PantallaBuscar from "./components/PantallaBuscar.vue";
+import PantallaHistorial from "./components/PantallaHistorial.vue";
 import { ajustes, cargarAjustes } from "./ajustes";
 import { fijarSimultaneas, iniciarCola, pendientes } from "./descargas";
+import { cargarHistorial } from "./historial";
 import {
   actualizarYtdlp,
   escucharProgreso,
@@ -16,12 +18,13 @@ import {
   type Progreso,
 } from "./herramientas";
 
-type Pestana = "descargar" | "buscar" | "cola" | "ajustes";
+type Pestana = "descargar" | "buscar" | "cola" | "historial" | "ajustes";
 
 const PESTANAS: { valor: Pestana; texto: string }[] = [
   { valor: "descargar", texto: "Descargar" },
   { valor: "buscar", texto: "Buscar" },
   { valor: "cola", texto: "Cola" },
+  { valor: "historial", texto: "Historial" },
   { valor: "ajustes", texto: "Ajustes" },
 ];
 
@@ -63,6 +66,7 @@ function alTerminarPreparacion(nuevo: EstadoHerramientas) {
 onMounted(async () => {
   dejarDeEscuchar = await escucharProgreso((p) => (progreso.value = p));
   await cargarAjustes();
+  await cargarHistorial();
   await iniciarCola();
   watch(() => ajustes.descargasSimultaneas, fijarSimultaneas, { immediate: true });
   estado.value = await estadoHerramientas();
@@ -109,6 +113,8 @@ onUnmounted(() => dejarDeEscuchar?.());
       <PantallaBuscar v-show="pestana === 'buscar'" @agregados="alAgregar" />
 
       <PantallaCola v-if="pestana === 'cola'" />
+
+      <PantallaHistorial v-if="pestana === 'historial'" />
 
       <PantallaAjustes
         v-if="pestana === 'ajustes'"

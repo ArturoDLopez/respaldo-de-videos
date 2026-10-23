@@ -296,6 +296,6 @@ mod pruebas {
     #[test]
     fn traduce_errores_de_ytdlp() {
         let stderr = "[youtube] abc: Downloading webpage\nERROR: [youtube] abc: Private video. Sign in";
-        assert_eq!(traducir_error_ytdlp(stderr), "El video es privado.");
+        assert!(traducir_error_ytdlp(stderr).starts_with("El video es privado."));
     }
 }

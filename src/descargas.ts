@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { Ajustes } from "./ajustes";
 import type { Elemento } from "./analisis";
+import { registrarEnHistorial } from "./historial";
 
 export type EstadoDescarga =
   | "en_espera"
@@ -47,8 +48,20 @@ export const pendientes = computed(
 export async function iniciarCola() {
   await listen<Descarga[]>("cola-actualizada", (e) => cola.splice(0, cola.length, ...e.payload));
   await listen<Descarga>("descarga-actualizada", (e) => {
-    const i = cola.findIndex((d) => d.id === e.payload.id);
-    if (i >= 0) cola[i] = e.payload;
+    const d = e.payload;
+    const i = cola.findIndex((x) => x.id === d.id);
+    if (i < 0) return;
+    if (cola[i].estado !== "terminado" && d.estado === "terminado" && d.archivo) {
+      registrarEnHistorial({
+        videoId: d.videoId,
+        titulo: d.titulo,
+        url: d.url,
+        miniatura: d.miniatura,
+        archivo: d.archivo,
+        fecha: Date.now(),
+      });
+    }
+    cola[i] = d;
   });
   cola.splice(0, cola.length, ...(await invoke<Descarga[]>("obtener_cola")));
 }

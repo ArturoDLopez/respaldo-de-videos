@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
+import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import BarraProgreso from "./BarraProgreso.vue";
 import { ajustes, CALIDADES, MAX_SIMULTANEAS, PLANTILLAS } from "../ajustes";
 import {
@@ -18,6 +21,11 @@ const emit = defineEmits<{ estado: [estado: EstadoHerramientas] }>();
 const actualizando = ref<"ytdlp" | "ffmpeg" | null>(null);
 const avisoHerramientas = ref<string | null>(null);
 const errorCarpeta = ref<string | null>(null);
+const version = ref("");
+
+onMounted(async () => {
+  version.value = await getVersion();
+});
 
 async function elegirCarpeta() {
   const elegida = await open({
@@ -34,6 +42,14 @@ async function abrirCarpeta() {
     await invoke("abrir_carpeta", { ruta: ajustes.carpetaDestino });
   } catch (e) {
     errorCarpeta.value = String(e);
+  }
+}
+
+async function abrirCarpetaHerramientas() {
+  try {
+    await invoke("abrir_carpeta", { ruta: await join(await appLocalDataDir(), "bin") });
+  } catch (e) {
+    avisoHerramientas.value = String(e);
   }
 }
 
@@ -127,6 +143,25 @@ async function actualizarFfmpegAhora() {
       </button>
     </div>
     <p v-if="avisoHerramientas" class="ayuda">{{ avisoHerramientas }}</p>
+  </section>
+
+  <section class="tarjeta acerca">
+    <h2>Acerca de</h2>
+    <p><strong>Respaldo de Videos</strong> {{ version && `versión ${version}` }}</p>
+    <p>
+      Te ayuda a guardar una copia de tus propios videos. Úsala solo con videos que te pertenecen
+      o que tienes permiso de descargar.
+    </p>
+    <p class="suave">
+      Funciona gracias a
+      <button class="enlace" @click="openUrl('https://github.com/yt-dlp/yt-dlp')">yt-dlp</button>
+      y
+      <button class="enlace" @click="openUrl('https://ffmpeg.org')">FFmpeg</button>, que se
+      descargan desde sus sitios oficiales y se usan sin cambios.
+    </p>
+    <button class="secundario" @click="abrirCarpetaHerramientas">
+      Abrir carpeta de herramientas
+    </button>
   </section>
 </template>
 

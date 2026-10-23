@@ -97,18 +97,46 @@ pub fn traducir_error_ytdlp(stderr: &str) -> String {
         .unwrap_or_else(|| stderr.trim());
     let minusculas = original.to_lowercase();
 
+    // Se usa la primera coincidencia, así que los casos más específicos van antes.
     let traduccion = [
+        // Enlaces y búsqueda
         ("is not a valid url", "Eso no parece un enlace válido."),
         ("unsupported url", "Ese enlace no es compatible. Pega el enlace de un video, una playlist o un canal."),
-        ("private video", "El video es privado."),
-        ("members-only", "El video es solo para miembros del canal."),
-        ("sign in to confirm your age", "El video tiene restricción de edad."),
-        ("video unavailable", "El video no está disponible."),
         ("this channel does not exist", "El canal no existe."),
         ("does not have a", "El canal no tiene esa sección."),
         ("http error 404", "No se encontró la página (error 404)."),
+        // Videos que no se pueden descargar
+        ("private video", "El video es privado. Si es tuyo, cámbialo a \"No listado\" mientras lo respaldas."),
+        ("members-only", "El video es solo para miembros del canal."),
+        ("join this channel", "El video es solo para miembros del canal."),
+        ("sign in to confirm your age", "El video tiene restricción de edad y YouTube pide iniciar sesión."),
+        ("not a bot", "YouTube pidió confirmar que no eres un robot. Espera un rato e intenta de nuevo."),
+        ("copyright", "YouTube retiró el video por un reclamo de derechos de autor."),
+        ("removed by the uploader", "El video fue eliminado por quien lo subió."),
+        ("account associated with this video has been terminated", "La cuenta que subió el video fue cerrada."),
+        ("not available in your country", "El video no está disponible en tu país."),
+        ("geo restriction", "El video no está disponible en tu país."),
+        ("premieres in", "El video es un estreno que todavía no empieza."),
+        ("live event will begin", "La transmisión todavía no empieza."),
+        ("this live event has ended", "La transmisión terminó y todavía no está disponible como video."),
+        ("requested format is not available", "No hay una versión del video con la calidad elegida. Prueba otra calidad en Ajustes."),
+        ("video unavailable", "El video no está disponible."),
+        // YouTube cambió algo: casi siempre se arregla actualizando yt-dlp
+        ("http error 403", "YouTube rechazó la descarga (error 403). Actualiza yt-dlp en Ajustes e intenta de nuevo."),
+        ("unable to extract", "YouTube cambió algo que yt-dlp no entiende. Actualiza yt-dlp en Ajustes e intenta de nuevo."),
         ("http error 429", "YouTube está limitando las peticiones. Espera unos minutos e intenta de nuevo."),
+        // Disco y archivos
+        ("no space left", "No hay espacio suficiente en el disco."),
+        ("errno 28", "No hay espacio suficiente en el disco."),
+        ("permission denied", "No hay permiso para escribir en la carpeta de destino."),
+        ("errno 13", "No hay permiso para escribir en la carpeta de destino."),
+        ("filename or extension is too long", "La ruta del archivo es demasiado larga. Elige una carpeta más corta o el formato \"Solo el título\"."),
+        ("ffmpeg not found", "No se encontró ffmpeg. Actualízalo en Ajustes."),
+        ("ffprobe and ffmpeg not found", "No se encontró ffmpeg. Actualízalo en Ajustes."),
+        // Conexión
+        ("certificate verify failed", "No se pudo verificar la conexión segura. Si usas un antivirus o un proxy que revisa HTTPS, revisa su configuración."),
         ("getaddrinfo failed", "No hay conexión a internet."),
+        ("connection reset", "Se cortó la conexión. Intenta de nuevo."),
         ("timed out", "La conexión tardó demasiado. Revisa tu internet e intenta de nuevo."),
     ]
     .iter()
@@ -412,4 +440,32 @@ pub async fn actualizar_ffmpeg(
     let _guardia = candado.0.lock().await;
     instalar_ffmpeg(&app, &cliente()?).await?;
     leer_estado(&app).await
+}
+
+#[cfg(test)]
+mod pruebas {
+    use super::traducir_error_ytdlp;
+
+    #[test]
+    fn traduce_errores_comunes() {
+        let casos = [
+            ("ERROR: [youtube] abc: Video unavailable. This video has been removed by the uploader", "eliminado por quien lo subió"),
+            ("ERROR: [youtube] abc: Requested format is not available. Use --list-formats", "calidad elegida"),
+            ("ERROR: unable to download video data: HTTP Error 403: Forbidden", "error 403"),
+            ("ERROR: [Errno 28] No space left on device", "espacio"),
+            ("ERROR: [youtube] abc: Sign in to confirm you're not a bot", "robot"),
+        ];
+        for (stderr, esperado) in casos {
+            let traducido = traducir_error_ytdlp(stderr);
+            assert!(traducido.contains(esperado), "{stderr:?} → {traducido:?}");
+        }
+    }
+
+    #[test]
+    fn deja_el_original_si_no_lo_conoce() {
+        assert_eq!(
+            traducir_error_ytdlp("ERROR: algo raro"),
+            "yt-dlp no pudo completar la operación: algo raro"
+        );
+    }
 }
