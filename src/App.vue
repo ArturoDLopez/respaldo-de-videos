@@ -2,9 +2,9 @@
 import { onMounted, onUnmounted, ref } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import PantallaPreparacion from "./components/PantallaPreparacion.vue";
-import BarraProgreso from "./components/BarraProgreso.vue";
+import PantallaAjustes from "./components/PantallaAjustes.vue";
+import { ajustes, cargarAjustes } from "./ajustes";
 import {
-  actualizarFfmpeg,
   actualizarYtdlp,
   escucharProgreso,
   estadoHerramientas,
@@ -12,39 +12,30 @@ import {
   type Progreso,
 } from "./herramientas";
 
+type Pestana = "descargar" | "ajustes";
+
+const PESTANAS: { valor: Pestana; texto: string }[] = [
+  { valor: "descargar", texto: "Descargar" },
+  { valor: "ajustes", texto: "Ajustes" },
+];
+
 const estado = ref<EstadoHerramientas | null>(null);
 const listo = ref(false);
+const pestana = ref<Pestana>("descargar");
 const aviso = ref<string | null>(null);
-const actualizando = ref<"ytdlp" | "ffmpeg" | null>(null);
 const progreso = ref<Progreso | null>(null);
 let dejarDeEscuchar: UnlistenFn | undefined;
 
-async function buscarActualizacionYtdlp(silencioso: boolean) {
-  actualizando.value = "ytdlp";
-  progreso.value = null;
+/** Al iniciar se busca una versión nueva de yt-dlp sin molestar si falla. */
+async function actualizarYtdlpEnSilencio() {
   try {
     const nueva = await actualizarYtdlp();
-    estado.value = await estadoHerramientas();
-    if (nueva) aviso.value = `yt-dlp se actualizó a la versión ${nueva}.`;
-    else if (!silencioso) aviso.value = "yt-dlp ya está en la última versión.";
-  } catch (e) {
-    // Al iniciar no molestamos si no hay internet; se usa la versión instalada.
-    if (!silencioso) aviso.value = String(e);
-  } finally {
-    actualizando.value = null;
-  }
-}
-
-async function actualizarFfmpegAhora() {
-  actualizando.value = "ffmpeg";
-  progreso.value = null;
-  try {
-    estado.value = await actualizarFfmpeg();
-    aviso.value = `ffmpeg se actualizó (${estado.value.ffmpeg}).`;
-  } catch (e) {
-    aviso.value = String(e);
-  } finally {
-    actualizando.value = null;
+    if (nueva) {
+      estado.value = await estadoHerramientas();
+      aviso.value = `yt-dlp se actualizó a la versión ${nueva}.`;
+    }
+  } catch {
+    // Sin internet se sigue usando la versión instalada.
   }
 }
 
@@ -55,10 +46,11 @@ function alTerminarPreparacion(nuevo: EstadoHerramientas) {
 
 onMounted(async () => {
   dejarDeEscuchar = await escucharProgreso((p) => (progreso.value = p));
+  await cargarAjustes();
   estado.value = await estadoHerramientas();
   if (estado.value.ytdlp && estado.value.ffmpeg) {
     listo.value = true;
-    buscarActualizacionYtdlp(true);
+    actualizarYtdlpEnSilencio();
   }
 });
 
@@ -68,33 +60,45 @@ onUnmounted(() => dejarDeEscuchar?.());
 <template>
   <PantallaPreparacion v-if="estado && !listo" :estado="estado" @listo="alTerminarPreparacion" />
 
-  <main v-else-if="estado" class="contenedor">
-    <h1>Respaldo de Videos</h1>
-    <p>Respalda tus propios videos con yt-dlp y ffmpeg.</p>
+  <template v-else-if="estado">
+    <nav class="pestanas">
+      <span class="marca">Respaldo de Videos</span>
+      <button
+        v-for="p in PESTANAS"
+        :key="p.valor"
+        class="pestana"
+        :class="{ activa: pestana === p.valor }"
+        @click="pestana = p.valor"
+      >
+        {{ p.texto }}
+      </button>
+    </nav>
 
-    <section class="tarjeta">
-      <h2>Herramientas</h2>
-      <BarraProgreso
-        nombre="yt-dlp"
-        :version="estado.ytdlp"
-        :progreso="actualizando === 'ytdlp' ? progreso : null"
+    <div v-if="aviso" class="aviso">
+      <span>{{ aviso }}</span>
+      <button class="cerrar" title="Cerrar" @click="aviso = null">×</button>
+    </div>
+
+    <main class="contenedor">
+      <template v-if="pestana === 'descargar'">
+        <section class="tarjeta">
+          <h2>Descargar</h2>
+          <p>
+            Se guardará en <code>{{ ajustes.carpetaDestino }}</code>
+            <button class="enlace" @click="pestana = 'ajustes'">Cambiar</button>
+          </p>
+          <p class="suave">Aquí podrás pegar el enlace de un video, una playlist o un canal.</p>
+        </section>
+      </template>
+
+      <PantallaAjustes
+        v-else
+        :estado="estado"
+        :progreso="progreso"
+        @estado="(nuevo) => (estado = nuevo)"
       />
-      <BarraProgreso
-        nombre="ffmpeg"
-        :version="estado.ffmpeg"
-        :progreso="actualizando === 'ffmpeg' ? progreso : null"
-      />
-      <div class="botones">
-        <button :disabled="actualizando !== null" @click="buscarActualizacionYtdlp(false)">
-          Buscar actualización de yt-dlp
-        </button>
-        <button :disabled="actualizando !== null" @click="actualizarFfmpegAhora">
-          Actualizar ffmpeg
-        </button>
-      </div>
-      <p v-if="aviso" class="aviso">{{ aviso }}</p>
-    </section>
-  </main>
+    </main>
+  </template>
 </template>
 
 <style>
@@ -108,6 +112,7 @@ onUnmounted(() => dejarDeEscuchar?.());
   --acento-hover: #2559b3;
   --error-fondo: #fde8e8;
   --error-texto: #9b1c1c;
+  --aviso-fondo: #e6f0ff;
 
   font-family: "Segoe UI", system-ui, sans-serif;
   font-size: 16px;
@@ -127,6 +132,7 @@ onUnmounted(() => dejarDeEscuchar?.());
     --acento-hover: #7aa8f3;
     --error-fondo: #3b1d1d;
     --error-texto: #f5b4b4;
+    --aviso-fondo: #1f2d44;
   }
 }
 
@@ -153,14 +159,41 @@ button:disabled {
   cursor: default;
 }
 
+button.secundario {
+  background: transparent;
+  color: var(--texto);
+  border: 1px solid var(--borde);
+}
+
+button.secundario:hover:not(:disabled) {
+  background: var(--fondo);
+}
+
+button.enlace {
+  padding: 0 0.25rem;
+  background: none;
+  color: var(--acento);
+  text-decoration: underline;
+}
+
+button.enlace:hover:not(:disabled) {
+  background: none;
+  color: var(--acento-hover);
+}
+
+code {
+  font-family: Consolas, monospace;
+  font-size: 0.9em;
+}
+
 .contenedor {
   max-width: 760px;
   margin: 0 auto;
-  padding: 2rem 1.5rem;
+  padding: 1.5rem;
 }
 
 .tarjeta {
-  margin-top: 1.5rem;
+  margin-bottom: 1.25rem;
   padding: 1.25rem 1.5rem;
   border: 1px solid var(--borde);
   border-radius: 10px;
@@ -172,14 +205,58 @@ button:disabled {
   font-size: 1.15rem;
 }
 
-.botones {
+.suave {
+  color: var(--texto-suave);
+}
+
+.pestanas {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 1.5rem;
+  border-bottom: 1px solid var(--borde);
+  background: var(--superficie);
+}
+
+.marca {
+  font-weight: 700;
+  margin-right: 1.5rem;
+}
+
+.pestana {
+  padding: 0.85rem 1rem;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--texto-suave);
+}
+
+.pestana:hover:not(:disabled) {
+  background: none;
+  color: var(--texto);
+}
+
+.pestana.activa {
+  color: var(--acento);
+  border-bottom-color: var(--acento);
 }
 
 .aviso {
-  margin: 1rem 0 0;
-  color: var(--texto-suave);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1.5rem;
+  background: var(--aviso-fondo);
+}
+
+.cerrar {
+  padding: 0 0.5rem;
+  background: none;
+  color: var(--texto);
+  font-size: 1.25rem;
+}
+
+.cerrar:hover:not(:disabled) {
+  background: none;
 }
 </style>

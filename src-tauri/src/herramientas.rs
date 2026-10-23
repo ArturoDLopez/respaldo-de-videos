@@ -77,7 +77,11 @@ async fn primera_linea(programa: &Path, argumento: &str) -> Option<String> {
     if !programa.exists() {
         return None;
     }
-    let salida = comando_oculto(programa).arg(argumento).output().await.ok()?;
+    let salida = comando_oculto(programa)
+        .arg(argumento)
+        .output()
+        .await
+        .ok()?;
     if !salida.status.success() {
         return None;
     }
@@ -124,7 +128,11 @@ fn a_hex(bytes: &[u8]) -> String {
 }
 
 /// Busca en un archivo de sumas (formato `hash  nombre`) la suma de `nombre`.
-async fn suma_esperada(cliente: &reqwest::Client, url: &str, nombre: &str) -> Result<String, String> {
+async fn suma_esperada(
+    cliente: &reqwest::Client,
+    url: &str,
+    nombre: &str,
+) -> Result<String, String> {
     let texto = cliente
         .get(url)
         .send()
@@ -191,10 +199,21 @@ async fn descargar(
     Ok(a_hex(&hasher.finalize()))
 }
 
-fn avisar(app: &AppHandle, herramienta: &'static str, etapa: &'static str, descargado: u64, total: Option<u64>) {
+fn avisar(
+    app: &AppHandle,
+    herramienta: &'static str,
+    etapa: &'static str,
+    descargado: u64,
+    total: Option<u64>,
+) {
     let _ = app.emit(
         EVENTO_PROGRESO,
-        Progreso { herramienta, etapa, descargado, total },
+        Progreso {
+            herramienta,
+            etapa,
+            descargado,
+            total,
+        },
     );
 }
 
